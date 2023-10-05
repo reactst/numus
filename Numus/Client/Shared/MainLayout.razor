@@ -1,0 +1,302 @@
+﻿@using Numus.Client.Services;
+@using Numus.Shared.Constants;
+@using System.Security.Claims;
+@using System.Text.Json;
+@using System.Text.RegularExpressions;
+@using BCrypt.Net;
+@using Numus.Client.Helpers
+@using Numus.Shared.Dtoes.Company;
+@inherits LayoutComponentBase
+@inject AuthenticationStateProvider authenticationProvider
+@inject ILocalStorageService localStorage
+@inject HttpClient httpClient
+@inject NavigationManager navigationManager
+@inject UserService userService
+@inject IJSRuntime jsRuntime
+@inject DialogService DialogService
+@inject CompanyService companyService
+
+<RadzenLayout>
+    <RadzenHeader>
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" JustifyContent="JustifyContent.SpaceBetween">
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0">
+                <RadzenSidebarToggle Click="@(() => sidebar1Expanded = !sidebar1Expanded)" />
+                <RadzenLabel Text="Numus" />
+            </RadzenStack>
+            <RadzenProfileMenu class="p-0" Click="HandleMenuClick">
+                <Template>
+                    <div class="d-flex flex-row align-items-center p-0">
+                        <div class="d-flex flex-column mx-2">
+                            <p class="m-0"><strong>@(userDto != null ? userDto.Name : "")</strong></p>
+                            <p class="m-0 text-muted"><small>@(userDto != null ? userDto.Role.ToString() : "")</small></p>
+                        </div>
+                        @if (!string.IsNullOrEmpty(imageSrc))
+                        {
+                            <img src="@imageSrc" class="rounded-circle" style="width: 35px; height: 35px; object-fit: cover;" alt="Avatar" />
+                        }
+                    </div>
+                </Template>
+
+                <ChildContent>
+                    @if (userDto != null && userDto != new UserDto() && userDto.Role == Roles.Admin)
+                    {
+                        <RadzenProfileMenuItem class="m-0" Text="Settings"></RadzenProfileMenuItem>
+                    }
+                    <RadzenProfileMenuItem class="m-0" Text="Logout"></RadzenProfileMenuItem>
+                </ChildContent>
+            </RadzenProfileMenu>
+        </RadzenStack>
+    </RadzenHeader>
+    <RadzenSidebar @bind-Expanded="@sidebar1Expanded">
+        <RadzenPanelMenu>
+            <RadzenPanelMenuItem Text="Invoices" Path="invoices" />
+            @if (userDto != null && userDto != new UserDto() && userDto.Role == Roles.Admin)
+            {
+                <RadzenPanelMenuItem Text="Users" Path="users" />
+                <RadzenPanelMenuItem Text="Categories" Path="categories" />
+            }
+        </RadzenPanelMenu>
+    </RadzenSidebar>
+    <RadzenBody>
+        <main>
+            <article class="content px-4">
+                @Body
+            </article>
+        </main>
+    </RadzenBody>
+</RadzenLayout>
+<RadzenDialog />
+
+@code{
+    [CascadingParameter]
+    private Task<AuthenticationState>? authenticationState { get; set; }
+    UserDto? userDto = new UserDto();
+    CompanyDto? companyDto = new CompanyDto();
+    string imageSrc = string.Empty;
+    string oldPassword = string.Empty;
+    private EditContext? editUserContext;
+    private EditContext? editCompanyContext;
+    private ValidationMessageStore? messageStore;
+    private ValidationMessageStore? messageCompanyStore;
+    bool loading = false;
+    bool sidebar1Expanded = true;
+
+    protected async override void OnInitialized()
+    {
+        if(authenticationState is not null)
+        {
+            var authState = await authenticationState;
+            var user = authState.User;
+            if (user?.Identity is not null && user.Identity.IsAuthenticated)
+            {
+                userDto = await userService.GetUserByNameAsync(user.Identity.Name);
+                companyDto = await companyService.GetCompanyByIdAsync(userDto.CompanyId);
+                imageSrc = GetImageSource(userDto);
+                StateHasChanged();
+            }
+        }
+    }
+
+    async void HandleUserUpdate()
+    {
+        loading = true;
+        var response = await userService.UpdateUserAsync(userDto);
+        if (!string.IsNullOrEmpty(response))
+        {
+            await jsRuntime.InvokeVoidAsync("alert", response);
+        }
+        loading = false;
+        StateHasChanged();
+        await HandleLogout();
+    }
+
+    async void HandleCompanyUpdate()
+    {
+        loading = true;
+        var response = await companyService.UpdateCompanyAsync(companyDto);
+        if (!string.IsNullOrEmpty(response))
+        {
+            await jsRuntime.InvokeVoidAsync("alert", response);
+        }
+        loading = false;
+        StateHasChanged();
+    }
+
+    async void HandleMenuClick(RadzenProfileMenuItem item)
+    {
+        if(item.Text == "Settings")
+        {
+            await ShowSettingsModal();
+        }
+        else if(item.Text == "Logout")
+        {
+            await HandleLogout();
+        }
+
+    }
+
+    string GetImageSource(UserDto user)
+    {
+        if (user != null && user.Image != null)
+        {
+            return $"data:image;base64,{Convert.ToBase64String(user.Image)}";
+        }
+        else
+        {
+            return "";
+        }
+    }
+
+    async Task HandleLogout()
+    {
+        await localStorage.RemoveItemAsync("token");
+        httpClient.DefaultRequestHeaders.Clear();
+        navigationManager.NavigateTo("/login");
+        await authenticationProvider.GetAuthenticationStateAsync();
+    }
+
+    async Task ShowSettingsModal()
+    {
+        editUserContext = new(userDto);
+        editUserContext.OnValidationRequested += HandleValidationRequested;
+        messageStore = new(editUserContext);
+
+        editCompanyContext = new(companyDto);
+        editUserContext.OnValidationRequested += HandleCompanyValidationRequested;
+        messageCompanyStore = new(editCompanyContext);
+        await DialogService.OpenAsync("Settings", ds =>
+            @<RadzenAccordion>
+                <Items>
+                    <RadzenAccordionItem Text="Edit user data">
+                        @if (editUserContext != null)
+                            {
+                                <EditForm EditContext="editUserContext" OnValidSubmit="HandleUserUpdate">
+                                    <DataAnnotationsValidator />
+                                    <div class="form-group">
+                                        <label for="name">Name:</label>
+                                        <InputText id="name" class="form-control" @bind-Value="@userDto.Name" />
+                                        <ValidationMessage For="@(() => userDto.Name)" />
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="email">Email:</label>
+                                        <InputText id="email" class="form-control" @bind-Value="@userDto.Email" />
+                                        <ValidationMessage For="@(() => userDto.Email)" />
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="password">Old Password:</label>
+                                        <InputText id="password" type="password" class="form-control" @bind-Value="@oldPassword" />
+                                        <ValidationMessage For="@(() => userDto.PasswordHash)" />
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="confirmPassword">New Password:</label>
+                                        <InputText id="confirmPassword" type="password" class="form-control" @bind-Value="@userDto.Password" />
+                                        <ValidationMessage For="@(() => userDto.Password)" />
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="profilePicture">Profile picture:</label>
+                                        <InputFile id="image" class="form-control" accept="image/png" OnChange="async e => await ImageHelper.ImageToByteArray(e,userDto)" />
+                                        <ValidationMessage For="@(() => userDto.Image)" />
+                                    </div>
+                                    <div class="d-flex flex-row justify-content-between align-items-center mt-2">
+                                    <div></div>
+                                    <RadzenButton type="submit" IsBusy="@loading" BusyText="Saving..." class="btn btn-primary">Save</RadzenButton>
+
+                                    </div>
+                                </EditForm>
+                        }
+                    </RadzenAccordionItem>
+                    <RadzenAccordionItem Text="Edit company data">
+                        @if (editCompanyContext != null)
+                        {
+                            <EditForm EditContext="editCompanyContext" OnValidSubmit="HandleCompanyUpdate">
+                                <DataAnnotationsValidator />
+                                <div class="form-group">
+                                    <label for="name">Name:</label>
+                                    <InputText id="name" class="form-control" @bind-Value="@companyDto.LegalName" />
+                            <ValidationMessage For="@(() => companyDto.LegalName)" />
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="address">Address:</label>
+                            <InputText id="address" class="form-control" @bind-Value="@companyDto.LegalAddress" />
+                            <ValidationMessage For="@(() => companyDto.LegalAddress)" />
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="vatId">VAT Id:</label>
+                                    <InputText id="vatId" class="form-control" @bind-Value="@companyDto.VatId" />
+                                    <ValidationMessage For="@(() => companyDto.VatId)" />
+                                </div>
+                                <div class="d-flex flex-row justify-content-between align-items-center mt-2">
+
+                                <div></div>
+                                <RadzenButton type="submit" IsBusy="@loading" BusyText="Saving..." class="btn btn-primary">Save</RadzenButton>
+                                </div>
+                            </EditForm>
+                        }
+                    </RadzenAccordionItem>
+                </Items>
+            </RadzenAccordion>
+    );
+    }
+
+    private void HandleValidationRequested(object? sender,
+        ValidationRequestedEventArgs args)
+    {
+        loading = true;
+        messageStore?.Clear();
+
+        // Custom validation logic
+        if (string.IsNullOrEmpty(userDto.Name))
+        {
+            messageStore?.Add(() => userDto.Name, "Please enter your name.");
+        }
+        if (string.IsNullOrEmpty(userDto.Email) || !Regex.IsMatch(userDto.Email, @"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"))
+        {
+            messageStore?.Add(() => userDto.Name, "Please enter a valid email address.");
+        }
+        if (!string.IsNullOrEmpty(oldPassword) || !string.IsNullOrEmpty(userDto.Password))
+        {
+            if (string.IsNullOrEmpty(oldPassword) || oldPassword.Length < 8 || !Regex.IsMatch(oldPassword, @"^(?=.*[0-9]).{8,}$"))
+            {
+                messageStore?.Add(() => userDto.PasswordHash, "Password needs to be at least 8 characters long, and must contain at lest one number.");
+            }
+            if (string.IsNullOrEmpty(userDto.Password) || userDto.Password.Length < 8 || !Regex.IsMatch(userDto.Password, @"^(?=.*[0-9]).{8,}$"))
+            {
+                messageStore?.Add(() => userDto.Password, "Password needs to be at least 8 characters long, and must contain at lest one number.");
+            }
+            if (!BCrypt.EnhancedVerify(oldPassword, userDto.PasswordHash))
+            {
+                messageStore?.Add(() => userDto.PasswordHash, "Incorrect password.");
+            }
+        }
+        loading = false;
+    }
+
+    private void HandleCompanyValidationRequested(object? sender,
+        ValidationRequestedEventArgs args)
+    {
+        loading = true;
+        messageCompanyStore?.Clear();
+
+        // Custom validation logic
+        if (string.IsNullOrEmpty(companyDto.LegalName))
+        {
+            messageCompanyStore?.Add(() => companyDto.LegalName, "Please enter company name.");
+        }
+        if (string.IsNullOrEmpty(companyDto.LegalAddress))
+        {
+            messageCompanyStore?.Add(() => companyDto.LegalAddress, "Please enter company address.");
+        }
+        if (string.IsNullOrEmpty(companyDto.VatId))
+        {
+            messageCompanyStore?.Add(() => companyDto.VatId, "Please enter company VAT Id.");
+        }
+        
+        loading = false;
+    }
+}

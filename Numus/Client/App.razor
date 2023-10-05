@@ -1,0 +1,24 @@
+﻿@using Numus.Shared.Helpers
+
+<CascadingAuthenticationState>
+    <Router AppAssembly="@typeof(App).Assembly">
+        <Found Context="routeData">
+            <AuthorizeRouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" >
+                <NotAuthorized>
+                    <RedirectToLogin></RedirectToLogin>
+                </NotAuthorized>
+            </AuthorizeRouteView>
+            <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+        </Found>
+        <NotFound>
+            <PageTitle>Not found</PageTitle>
+            <LayoutView Layout="@typeof(BlankLayout)">
+                <div class="d-flex flex-column align-items-center justify-content-center vh-100 bg-primary">
+                    <h1 class="display-1 fw-bold text-white">404</h1>
+                    <h2 class="display-3 p-5 text-justify fw-bold text-white">Sorry, we couldn't find what you are looking for. :(</h2>
+                    <a href="/" class="btn btn-secondary display-1 fw-bold text-white">Go Home</a>
+                </div>
+            </LayoutView>
+        </NotFound>
+    </Router>
+</CascadingAuthenticationState>

@@ -1,0 +1,106 @@
+﻿@page "/category"
+@page "/category/{externalId}"
+@using Numus.Shared.Dtoes.Category;
+@using Numus.Shared.Dtoes.Invoice;
+@using Numus.Client.Helpers
+@inject IJSRuntime jsRuntime
+@inject AuthenticationStateProvider authenticationProvider
+@inject UserService userService
+@inject CategoryService categoryService
+@inject NavigationManager navigationManager
+
+
+
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        <PageTitle>Category</PageTitle>
+        <h1>Category @(externalId)</h1>
+        <EditForm Context="editContext" EditContext="formContext" OnValidSubmit="HandleSubmitForm">
+            <DataAnnotationsValidator />
+            <div class="form-group">
+                <label for="barcode">Name:</label>
+                <InputText id="barcode" class="form-control" @bind-Value="@categoryDto.Name" />
+                <ValidationMessage For="@(() => categoryDto.Name)" />
+            </div>
+            <div class="d-flex flex-row justify-content-between align-items-center mt-2">
+                <div></div>
+                <RadzenButton type="submit" IsBusy="@loading" BusyText="Saving..." class="btn btn-primary">Save</RadzenButton>
+            </div>
+        </EditForm>
+    </Authorized>
+    <NotAuthorized>
+        <h1>Unauthorized access attempt</h1>
+        <br>
+        <p>You do not have permission to view this page.</p>
+        <p>If you require access to this page, contact your administrator.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+
+
+@code {
+    [Parameter]
+    public string externalId { get; set; }
+
+    CategoryDto? categoryDto;
+    UserDto? currentUser;
+    ValidationMessageStore? messageStore;
+    EditContext? formContext;
+    bool loading;
+
+    protected override async void OnInitialized()
+    {
+        if (string.IsNullOrEmpty(externalId))
+        {
+            categoryDto = new CategoryDto();
+            var authState = await authenticationProvider.GetAuthenticationStateAsync();
+            currentUser = await userService.GetUserByNameAsync(authState.User.Identity.Name);
+            categoryDto.CompanyId = currentUser.CompanyId;
+        }
+        else
+        {
+            categoryDto = await categoryService.GetCategoryByExternalIdAsync(externalId);
+        }
+        formContext = new(categoryDto);
+        formContext.OnValidationRequested += HandleValidationRequested;
+        messageStore = new(formContext);
+
+        StateHasChanged();
+    }
+
+    async void HandleSubmitForm()
+    {
+        loading = true;
+        string response = string.Empty;
+        if (!string.IsNullOrEmpty(externalId))
+        {
+            response = await categoryService.UpdateCategoryAsync(categoryDto);
+        }
+        else
+        {
+            response = await categoryService.CreateCategoryAsync(categoryDto);
+        }
+        if (!string.IsNullOrEmpty(response))
+        {
+            await jsRuntime.InvokeVoidAsync("alert", response);
+        }
+
+        loading = false;
+        StateHasChanged();
+        navigationManager.NavigateTo("/categories", true);
+    }
+
+    private void HandleValidationRequested(object? sender,
+        ValidationRequestedEventArgs args)
+    {
+        loading = true;
+        messageStore?.Clear();
+
+        // Custom validation logic
+        if (string.IsNullOrEmpty(categoryDto.Name))
+        {
+            messageStore?.Add(() => categoryDto.Name, "Category name is required.");
+        }
+        loading = false;
+    }
+}

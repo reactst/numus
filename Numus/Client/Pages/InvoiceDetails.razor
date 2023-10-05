@@ -1,0 +1,97 @@
+﻿@page "/invoice/{externalId}/details"
+@using Numus.Shared.Dtoes.Category;
+@using Numus.Shared.Dtoes.Invoice;
+@using Numus.Shared.Constants;
+@using Numus.Client.Helpers
+@inject InvoiceService invoiceService
+@inject IJSRuntime jsRuntime
+@inject AuthenticationStateProvider authenticationProvider
+@inject UserService userService
+@inject CategoryService categoryService
+
+
+<AuthorizeView>
+    <Authorized>
+        <PageTitle>Invoice</PageTitle>
+        <h1>Invoice @(externalId)</h1>
+        <div>
+            <div class="form-group">
+                <label for="barcode">Barcode:</label>
+                <InputText id="barcode" class="form-control" readonly @bind-Value="@invoiceDto.Barcode" />
+            </div>
+            <div class="form-group">
+                <label for="invoicee">Invoicee:</label>
+                <InputText id="invoicee" class="form-control" readonly @bind-Value="@invoiceDto.Invoicee" />
+            </div>
+
+            <div class="form-group">
+                <label for="dateTime">Date created:</label>
+                <RadzenDatePicker id="dateTime" ReadOnly="true" @bind-Value="@invoiceDto.DateTime" />
+            </div>
+
+            <div class="form-group">
+                <label for="status">Status:</label>
+                <InputSelect id="role" class="form-control" readonly @bind-Value="@invoiceDto.Status">
+                    @foreach (var role in Enum.GetValues(typeof(Statuses)))
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </InputSelect>
+            </div>
+
+            @if(categories != null)
+            {
+                <div class="form-group">
+                    <label for="category">Category:</label>
+                    <InputSelect id="category" class="form-control" readonly @bind-Value="invoiceDto.CategoryId">
+                        @foreach (var category in categories)
+                        {
+                            <option value="@category.Id">@category.Name</option>
+                        }
+                    </InputSelect>
+                </div>
+            }
+
+            <div class="form-group">
+                <label for="description">Description:</label>
+                <InputTextArea id="description" class="form-control" readonly @bind-Value="@invoiceDto.Description" />
+            </div>
+
+            <div class="form-group">
+                <label for="invoiceDocument">Invoice document:</label>
+                <img id="invoiceDocument" class="form-control" src="@(ImageHelper.ByteArrayToImage(invoiceDto.InvoiceDocument))" />
+            </div>
+            @if(invoiceDto.ProofOfPaymentDocument != null)
+            {
+                <div class="form-group">
+                    <label for="proofOfPaymentDocument">Proof of payment document:</label>
+                    <img id="invoiceDocument" class="form-control" src="@(ImageHelper.ByteArrayToImage(invoiceDto.ProofOfPaymentDocument))" />
+                </div>
+            }
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <h1>Unauthorized access attempt</h1>
+        <br>
+        <p>You do not have permission to view this page.</p>
+        <p>If you require access to this page, contact your administrator.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+
+
+@code {
+    [Parameter]
+    public string externalId { get; set; }
+
+    InvoiceDto? invoiceDto;
+    List<CategoryDto> categories;
+
+    protected override async void OnInitialized()
+    {
+        invoiceDto = await invoiceService.GetInvoiceByExternalIdAsync(externalId);
+        categories = await categoryService.GetCategoriesAsync();
+
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,126 @@
+﻿@using Numus.Shared.Dtoes.Company;
+<div class="row flex-column">
+    <div class="step-content">
+        @switch (selectedStep)
+        {
+            case 1:
+                <EditForm Model="@companyDto" OnValidSubmit="() => OnStepClick(2)">
+                    <DataAnnotationsValidator />
+
+                    <div class="card">
+                        <div class="card-header">
+                            <ul class="nav nav-tabs card-header-tabs">
+                                <li class="nav-link disabled @(selectedStep == 1 ? "active" : "")">Register Company</li>
+                                <li class="nav-link disabled @(selectedStep == 2 ? "active" : "")">Register User</li>
+                            </ul>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label for="LegalName">Legal Name:</label>
+                                <InputText id="LegalName" class="form-control" @bind-Value="companyDto.LegalName" />
+                                <ValidationMessage For="@(() => companyDto.LegalName)" />
+                            </div>
+                            <div class="form-group">
+                                <label for="LegalAddress">Legal Address:</label>
+                                <InputText id="LegalAddress" class="form-control" @bind-Value="companyDto.LegalAddress" />
+                                <ValidationMessage For="@(() => companyDto.LegalAddress)" />
+                            </div>
+                            <div class="form-group">
+                                <label for="VatId">VAT ID:</label>
+                                <InputText id="VatId" class="form-control" @bind-Value="companyDto.VatId" />
+                                <ValidationMessage For="@(() => companyDto.VatId)" />
+                            </div>
+                            <div class="form-group">
+                                <label for="Balance">Balance:</label>
+                                <InputNumber id="Balance" class="form-control" @bind-Value="companyDto.Balance" />
+                                <ValidationMessage For="@(() => companyDto.Balance)" />
+                            </div>
+                        </div>
+
+                        <div class="card-footer d-flex flex-row justify-content-between align-items-center">
+                            <div></div>
+                            <RadzenButton type="submit" class="btn btn-primary">Next</RadzenButton>
+                        </div>
+                    </div>
+                </EditForm>
+                break;
+            case 2:
+                <EditForm Model="@userRegisterDto" OnValidSubmit="() => OnStepClick(3)">
+                    <DataAnnotationsValidator />
+
+                    <div class="card">
+                        <div class="card-header">
+                            <ul class="nav nav-tabs card-header-tabs">
+                                <li class="nav-link disabled @(selectedStep == 1 ? "active" : "")">Register Company</li>
+                                <li class="nav-link disabled @(selectedStep == 2 ? "active" : "")">Register User</li>
+                            </ul>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label for="name">Name:</label>
+                                <InputText id="name" class="form-control" @bind-Value="@userRegisterDto.Name" />
+                                <ValidationMessage For="@(() => userRegisterDto.Name)" />
+                            </div>
+
+                            <div class="form-group">
+                                <label for="email">Email:</label>
+                                <InputText id="email" class="form-control" @bind-Value="@userRegisterDto.Email" />
+                                <ValidationMessage For="@(() => userRegisterDto.Email)" />
+                            </div>
+
+                            <div class="form-group">
+                                <label for="password">Password:</label>
+                                <InputText id="password" type="password" class="form-control" @bind-Value="@userRegisterDto.Password" />
+                                <ValidationMessage For="@(() => userRegisterDto.Password)" />
+                            </div>
+
+                            <div class="form-group">
+                                <label for="confirmPassword">Confirm Password:</label>
+                                <InputText id="confirmPassword" type="password" class="form-control" @bind-Value="@userRegisterDto.ConfirmPassword" />
+                                <ValidationMessage For="@(() => userRegisterDto.ConfirmPassword)" />
+                            </div>
+                        </div>
+
+                        <div class="card-footer d-flex flex-row justify-content-between align-items-center">
+                            <RadzenButton type="button" class="btn btn-secondary" @onclick="() => OnStepClick(1)">Back</RadzenButton>
+                            <RadzenButton type="submit" class="btn btn-primary">Register</RadzenButton>
+                        </div>
+                    </div>
+                </EditForm>
+                break;
+            case 3:
+                <div class="d-flex justify-content-center align-items-center vh-100">
+                    <h1>Processing your registration, please wait...</h1>
+                </div>
+                break;
+            default:
+                break;
+        }
+    </div>
+</div>
+
+@code {
+    CompanyDto companyDto = new CompanyDto();
+    UserRegisterDto userRegisterDto = new UserRegisterDto();
+    int selectedStep = 1;
+
+    private async void OnStepClick(int step)
+    {
+        selectedStep = step;
+
+        if (selectedStep == 3)
+        {
+            await OnFormSubmit();
+        }
+    }
+
+    private async Task OnFormSubmit()
+    {
+        // Submit the data to the server
+        var formCompanyData = companyDto;
+        var formUserData = userRegisterDto;
+        // TODO: send the form data to the server using an API call or a form submission
+
+        await Task.CompletedTask;
+    }
+}

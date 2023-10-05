@@ -1,0 +1,161 @@
+﻿@page "/register"
+@layout BlankLayout
+@using Numus.Shared.Services;
+@using System.ComponentModel.DataAnnotations;
+@using Numus.Shared.Dtoes.User;
+@using System.Text.Json;
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
+
+@using Numus.Shared.Dtoes.Company;
+<div class="d-flex flex-column align-items-center">
+    <RadzenStack Gap="0" Class="rz-my-12 rz-mx-auto rz-border-radius-6 rz-shadow-10" Style="width: 100%; max-width: 600px; overflow: hidden;">
+        <RadzenCard Class="rz-shadow-0 rz-border-radius-0 rz-background-color-info rz-p-12" style="text-align: center;">
+            <RadzenText TextStyle="TextStyle.DisplayH3" TagName="TagName.H2" Class="rz-color-white rz-mb-0">Numus</RadzenText>
+        </RadzenCard>
+        <RadzenCard Class="rz-shadow-0 rz-p-12">
+            <RadzenSteps @ref="stepComponent" Change=@OnChange>
+                <Steps>
+                    <RadzenStepsItem Text="Company details" Disabled="stepComponent.SelectedIndex == 2">
+                        <RadzenTemplateForm @ref="companyForm" Data="@companyDto">
+                                <RadzenRow>
+                                    <RadzenColumn>
+                                        <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Legal name</RadzenText>
+                                        <RadzenTextBox Style="" Name="LegalName" @bind-Value="companyDto.LegalName"></RadzenTextBox>
+                                        <RadzenRequiredValidator Component="LegalName" Text="Legal name is required"></RadzenRequiredValidator>
+                                    </RadzenColumn>
+                                    <RadzenColumn>
+                                        <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Legal address</RadzenText>
+                                        <RadzenTextBox Style="" Name="LegalAddress" @bind-Value="companyDto.LegalAddress"></RadzenTextBox>
+                                        <RadzenRequiredValidator Component="LegalAddress" Text="Legal address is required"></RadzenRequiredValidator>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                                <RadzenRow>
+                                    <RadzenColumn>
+                                        <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">VAT Id</RadzenText>
+                                        <RadzenTextBox Style="" Name="VatId" MaxLength="9" @bind-Value="companyDto.VatId"></RadzenTextBox>
+                                        <RadzenRequiredValidator Component="VatId" Text="VAT Id is required"></RadzenRequiredValidator>
+                                        <RadzenLengthValidator Component="VatId" Min="9" Text="VAT Id must be 9 numbers long"></RadzenLengthValidator>
+                                        <RadzenRegexValidator Component="VatId" Pattern=@("^[0-9]*$") Text="VAT Id can only contain numbers"></RadzenRegexValidator>
+                                    </RadzenColumn>
+                                    <RadzenColumn>
+                                        <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Balance</RadzenText>
+                                        <RadzenNumeric Style="" ShowUpDown="false" Placeholder="0.00" Name="Balance" @bind-Value="companyDto.Balance"></RadzenNumeric>
+                                    </RadzenColumn>
+                                </RadzenRow>
+                        </RadzenTemplateForm>
+                    </RadzenStepsItem>
+                    <RadzenStepsItem Text="Owner details" Disabled="OwnerDetailsIsDisabled()">
+                        <RadzenTemplateForm @ref="userForm" Data=@userRegisterDto>
+                            <RadzenRow>
+                                <RadzenColumn>
+                                    <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Username</RadzenText>
+                                    <RadzenTextBox Style="" Name="Name" @bind-Value="userRegisterDto.Name"></RadzenTextBox>
+                                    <RadzenRequiredValidator Component="Name" Text="Username is required"></RadzenRequiredValidator>
+                                </RadzenColumn>
+                                <RadzenColumn>
+                                    <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Email</RadzenText>
+                                    <RadzenTextBox Style="" Name="Email" @bind-Value="userRegisterDto.Email"></RadzenTextBox>
+                                    <RadzenRequiredValidator Component="Email" Text="Email is required"></RadzenRequiredValidator>
+                                    <RadzenRegexValidator Component="Email" Pattern=@("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$") Text="Please enter a valid email"></RadzenRegexValidator>
+                                </RadzenColumn>
+                            </RadzenRow>
+                            <RadzenRow>
+                                <RadzenColumn>
+                                    <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Password</RadzenText>
+                                    <RadzenTextBox Style="" Name="Password" @bind-Value="userRegisterDto.Password"></RadzenTextBox>
+                                    <RadzenRequiredValidator Component="Password" Text="Password is required"></RadzenRequiredValidator>
+                                    <RadzenRegexValidator Component="Password" Pattern=@("^(?=.*\\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[a-zA-Z]).{8,}$") Text="Password has to be at least 8 characters long and contain at least one capital letter and one number"></RadzenRegexValidator>
+                                </RadzenColumn>
+                                <RadzenColumn>
+                                    <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Confirm Password</RadzenText>
+                                    <RadzenTextBox Style="" ShowUpDown="false" Name="ConfirmPassword" @bind-Value="userRegisterDto.ConfirmPassword"></RadzenTextBox>
+                                    <RadzenRequiredValidator Component="ConfirmPassword" Text="Confirm password is required"></RadzenRequiredValidator>
+                                    <RadzenCompareValidator Value=@userRegisterDto.Password Component="ConfirmPassword" Text="Passwords should be the same" />
+                                </RadzenColumn>
+                            </RadzenRow>
+                        </RadzenTemplateForm>
+                    </RadzenStepsItem>
+                    <RadzenStepsItem Text="Register" Disabled="RegisterIsDisabled()">
+                        <RadzenRow>
+                            <RadzenText TextStyle="TextStyle.Subtitle2" TagName="TagName.H3">Please wait while we register you</RadzenText>
+                        </RadzenRow>
+                        <RadzenRow>
+                            <RadzenProgressBar Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                        </RadzenRow>
+                    </RadzenStepsItem>
+                </Steps>
+            </RadzenSteps>
+            <RadzenRow>
+                <RadzenLink Path="login">Already have an account ?</RadzenLink>
+            </RadzenRow>
+        </RadzenCard>
+    </RadzenStack>
+</div>
+
+@code {
+    RadzenSteps stepComponent;
+    RadzenTemplateForm<CompanyDto> companyForm = new RadzenTemplateForm<CompanyDto>();
+    RadzenTemplateForm<UserRegisterDto> userForm = new RadzenTemplateForm<UserRegisterDto>();
+    CompanyDto companyDto = new CompanyDto();
+    UserRegisterDto userRegisterDto = new UserRegisterDto();
+    int selectedStep = 1;
+
+    async Task OnChange(int index)
+    {
+        if(index == 1)
+        {
+            stepComponent.NextText = "Register";
+        }
+        else
+        {
+            stepComponent.NextText = "Next";
+        }
+
+        if(index == 2)
+        {
+            stepComponent.ShowStepsButtons = false;
+            await OnFormSubmit();
+        }
+    }
+
+    bool OwnerDetailsIsDisabled()
+    {
+        return stepComponent.SelectedIndex == 2 || companyForm.EditContext == null || !companyForm.EditContext.Validate() || !companyForm.IsValid;
+    }
+    bool RegisterIsDisabled()
+    {
+        return companyForm.EditContext == null || !companyForm.EditContext.Validate() || userForm.EditContext == null || !userForm.EditContext.Validate() || !companyForm.IsValid || !userForm.IsValid;
+    }
+
+    private async Task OnFormSubmit()
+    {
+        userRegisterDto.Role = Numus.Shared.Constants.Roles.Admin;
+        var response = await AuthService.Register(userRegisterDto, companyDto);
+        if (string.IsNullOrEmpty(response))
+        {
+            Navigation.NavigateTo("/");
+        }
+        else
+        {
+            await JsRuntime.InvokeVoidAsync("alert", response);
+            selectedStep--;
+        }
+    }
+
+    private async Task ImageToByteArray(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            using var stream = new MemoryStream();
+            await file.OpenReadStream().CopyToAsync(stream);
+            userRegisterDto.Image = stream.ToArray();
+        }
+        else
+        {
+            userRegisterDto.Image = null;
+        }
+    }
+}

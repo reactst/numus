@@ -1,0 +1,50 @@
+﻿@page "/login"
+@layout BlankLayout
+@using Numus.Shared.Services;
+@using Numus.Shared.Dtoes.User;
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
+
+<div class="d-flex flex-column align-items-center">
+    <RadzenStack Gap="0" Class="rz-my-12 rz-mx-auto rz-border-radius-6 rz-shadow-10" Style="width: 100%; max-width: 600px; overflow: hidden;">
+        <RadzenCard Class="rz-shadow-0 rz-border-radius-0 rz-background-color-info rz-p-12" style="text-align: center;">
+            <RadzenText TextStyle="TextStyle.DisplayH3" TagName="TagName.H2" Class="rz-color-white rz-mb-0">Numus</RadzenText>
+        </RadzenCard>
+        <RadzenCard Class="rz-shadow-0 rz-p-12">
+            <RadzenTemplateForm Data="@("LoginForm")">
+                <RadzenLogin AllowResetPassword="true" Login="HandleLogin" Register="HandleRegister" ResetPassword="HandleForgetPassword" />
+            </RadzenTemplateForm>
+        </RadzenCard>
+    </RadzenStack>
+</div>
+
+@code {
+    private UserDto user = new UserDto();
+    bool loading = false;
+
+    async Task HandleLogin(LoginArgs loginData)
+    {
+        loading = true;
+        user.Name = loginData.Username;
+        user.Password = loginData.Password;
+        var response = await AuthService.Login(user);
+        if (string.IsNullOrEmpty(response))
+        {
+            Navigation.NavigateTo("/");
+        }
+        else
+        {
+            await JsRuntime.InvokeVoidAsync("alert", response);
+        }
+        loading = false;
+    }
+    void HandleRegister()
+    {
+        Navigation.NavigateTo("register");
+    }
+    void HandleForgetPassword()
+    {
+        Navigation.NavigateTo("forget-password");
+    }
+}

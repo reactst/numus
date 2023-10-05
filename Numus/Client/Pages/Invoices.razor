@@ -1,0 +1,194 @@
+﻿@page "/invoices"
+@page "/"
+@using Numus.Shared.Dtoes.Category;
+@using Numus.Shared.Dtoes.Invoice;
+@inject InvoiceService invoiceService
+@inject NavigationManager navigationManager
+@inject CategoryService categoryService
+@inject UserService userService
+@inject IJSRuntime jsRuntime
+
+
+<AuthorizeView>
+    <Authorized>
+        <PageTitle>Invoices</PageTitle>
+        @if (invoices == null)
+        {
+            <h5>Loading...</h5>
+        }
+        else
+        {
+            <div class="d-flex flex-row align-items-center justify-content-between">
+                <div class="d-flex flex-row align-items-center justify-content-between">
+                    <div class="form-group">
+                        <label for="barcode">Barcode:</label>
+                        <InputText id="barcode" class="form-control" @bind-Value="@barcodeFilter" @bind-Value:after="Search" />
+                    </div>
+                    <div class="form-group">
+                        <label for="invoicee">Invoicee:</label>
+                        <InputText id="invoicee" class="form-control" @bind-Value="@invoiceeFilter" @bind-Value:after="Search" />
+                    </div>
+                    <div class="form-group d-flex flex-column">
+                        <label for="dateTime">Date created:</label>
+                        <RadzenDatePicker id="dateTime" @bind-Value="@dateTimeFilterFrom" @bind-Value:after="Search" />
+                    </div>
+                    <div class="form-group d-flex flex-column">
+                        <label for="dateTime">Date created:</label>
+                        <RadzenDatePicker id="dateTime" @bind-Value="@dateTimeFilterTo" @bind-Value:after="Search" />
+                    </div>
+                    <div class="form-group d-flex flex-column">
+                        <label for="dateTime">Date created:</label>
+                        <RadzenDatePicker id="dateTime" @bind-Value="@dateTimeFilterTo" @bind-Value:after="Search" />
+                    </div>
+                    @if (categories != null)
+                    {
+                        <div class="form-group">
+                            <label for="category">Category:</label>
+                            <InputSelect id="category" class="form-control" @bind-Value="categoryFilter" @bind-Value:after="Search">
+                                <option value="">Select a category...</option>
+                                @foreach (var category in categories)
+                                {
+                                    <option value="@category.Id">@category.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                    }
+                </div>
+                <div class="d-flex flex-row align-items-center justify-content-between">
+                    @if (userDto != null && userDto != new UserDto() && userDto.Role != Numus.Shared.Constants.Roles.Audit)
+                    {
+                        <RadzenButton Text="Add invoice" Click="@(args => navigateAddInvoice())"></RadzenButton>
+                    }
+                    <RadzenButton Text="Export results" Click="@(args => exportResultsToPdf())"></RadzenButton>
+                </div>
+            </div>
+            <RadzenDataList WrapItems="true" AllowPaging="true"
+                        Data="@invoices" TItem="InvoiceDto" PageSize="25" PagerHorizontalAlign="HorizontalAlign.Left" ShowPagingSummary="true">
+                <Template Context="invoice">
+                    <RadzenCard Style="width: 100%; padding: 0;">
+                        <RadzenRow Gap="0">
+                            <RadzenColumn Size="6" SizeLG="3" Class="rz-p-4">
+                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H5">Barcode</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2">@(invoice.Barcode)</RadzenText>
+
+                                </RadzenColumn>
+                                <RadzenColumn Size="6" SizeLG="6" Class="rz-p-4">
+                                    <RadzenRow Gap="0">
+                                        <RadzenColumn Size="6" SizeMD="6" SizeLG="2">
+                                            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H5" Class="rz-mb-0">Created date</RadzenText>
+                                            <RadzenText TextStyle="TextStyle.Body2" ReadOnly="true">@(invoice.DateTime.ToString())</RadzenText>
+                                        </RadzenColumn>
+                                        <RadzenColumn Size="6" SizeMD="6" SizeLG="2">
+                                            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H5" Class="rz-mb-0">Invoicee</RadzenText>
+                                            <RadzenText TextStyle="TextStyle.Body2">@(invoice.Invoicee)</RadzenText>
+                                        </RadzenColumn>
+                                        <RadzenColumn Size="6" SizeMD="6" SizeLG="2">
+                                            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H5" Class="rz-mb-0">Category</RadzenText>
+                                            <RadzenText TextStyle="TextStyle.Body2">@(getCategoryName(invoice))</RadzenText>
+                                        </RadzenColumn>
+                                    </RadzenRow>
+                                </RadzenColumn>
+                                <RadzenColumn Size="6" SizeLG="1" Class="rz-p-4">
+                                    <RadzenButton Text="Details" Click="@(args => navigateDetailsInvoice(invoice))" Style="width: 100%" />
+                                </RadzenColumn>
+                                @if(userDto.Role != Numus.Shared.Constants.Roles.Audit)
+                                {
+                                    <RadzenColumn Size="6" SizeLG="1" Class="rz-p-4">
+                                        <RadzenButton Text="Edit" Click="@(args => navigateEditInvoice(invoice))" Style="width: 100%" />
+                                    </RadzenColumn>
+                                    <RadzenColumn Size="6" SizeLG="1" Class="rz-p-4">
+                                        <RadzenButton Text="Delete" Click="@(args => deleteInvoice(invoice))" Style="width: 100%" />
+                                    </RadzenColumn>
+                                }
+                        </RadzenRow>
+                        </RadzenCard>
+                    </Template>
+                </RadzenDataList>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <h1>Unauthorized access attempt</h1>
+        <br>
+        <p>You do not have permission to view this page.</p>
+        <p>If you require access to this page, contact your administrator.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? authenticationState { get; set; }
+    UserDto? userDto = new UserDto();
+    List<InvoiceDto>? invoices;
+
+    string? barcodeFilter= null;
+    string? invoiceeFilter = null;
+    DateTime? dateTimeFilterFrom = null;
+    DateTime? dateTimeFilterTo = null;
+    int? categoryFilter = null;
+    List<CategoryDto> categories;
+
+    protected override async void OnInitialized()
+    {
+        if (authenticationState is not null)
+        {
+            var authState = await authenticationState;
+            var user = authState.User;
+            if (user?.Identity is not null && user.Identity.IsAuthenticated)
+            {
+                userDto = await userService.GetUserByNameAsync(user.Identity.Name);
+            }
+        }
+        Search();
+        categories = await categoryService.GetCategoriesAsync();
+        StateHasChanged();
+    }
+    public void Search()
+    {
+        FilterInvoices(barcodeFilter, dateTimeFilterFrom, dateTimeFilterTo, invoiceeFilter, categoryFilter, userDto.CompanyId ?? 0);
+    }
+    public async void FilterInvoices(string? barcode, DateTime? dateTimeFrom, DateTime? dateTimeTo, string? invoicee, int? categoryFilter, int companyId)
+    {
+        invoices = await invoiceService.GetInvoicesFilteredAsync(barcode, dateTimeFrom, dateTimeTo, invoicee, categoryFilter, companyId);
+        StateHasChanged();
+    }
+    public string getCategoryName(InvoiceDto invoiceDto)
+    {
+        var category = categories.FirstOrDefault(category => category.Id == invoiceDto.CategoryId);
+        return category.Name;
+    }
+    public void navigateEditInvoice(InvoiceDto invoiceDto)
+    {
+        navigationManager.NavigateTo($"/invoice/{invoiceDto.ExternalId}");
+    }
+    public void navigateDetailsInvoice(InvoiceDto invoiceDto)
+    {
+        navigationManager.NavigateTo($"/invoice/{invoiceDto.ExternalId}/details");
+    }
+    public void navigateAddInvoice()
+    {
+        navigationManager.NavigateTo($"/invoice");
+    }
+    public void deleteInvoice(InvoiceDto invoiceDto)
+    {
+        invoiceService.DeleteInvoice(invoiceDto);
+        navigationManager.NavigateTo("/invoices", true);
+    }
+
+    private async Task<Stream> GetFileStream()
+    {
+        var binaryData = await invoiceService.GeneratePdfAsync(invoices);
+        var fileStream = new MemoryStream(binaryData);
+
+        return fileStream;
+    }
+
+    public async void exportResultsToPdf()
+    {
+        var fileStream = await GetFileStream();
+        var fileName = "report.pdf";
+
+        using var streamRef = new DotNetStreamReference(stream: fileStream);
+
+        await jsRuntime.InvokeVoidAsync("downloadFileFromStream", fileName, streamRef);
+    }
+}

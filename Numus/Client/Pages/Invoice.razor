@@ -1,0 +1,186 @@
+﻿@page "/invoice"
+@page "/invoice/{externalId}"
+@using Numus.Shared.Dtoes.Category;
+@using Numus.Shared.Dtoes.Invoice;
+@using Numus.Shared.Constants;
+@using Numus.Client.Helpers
+@inject InvoiceService invoiceService
+@inject IJSRuntime jsRuntime
+@inject AuthenticationStateProvider authenticationProvider
+@inject UserService userService
+@inject CategoryService categoryService
+@inject NavigationManager navigationManager
+
+
+
+<AuthorizeView Roles="Admin, User">
+    <Authorized>
+        <PageTitle>Invoice</PageTitle>
+        <h1>Invoice @(externalId)</h1>
+        <EditForm Context="editContext" EditContext="formContext" OnValidSubmit="HandleSubmitForm">
+            <DataAnnotationsValidator />
+            <div class="form-group">
+                <label for="barcode">Barcode:</label>
+                <InputText id="barcode" class="form-control" @bind-Value="@invoiceDto.Barcode" />
+                <ValidationMessage For="@(() => invoiceDto.Barcode)" />
+            </div>
+            <div class="form-group">
+                <label for="invoicee">Invoicee:</label>
+                <InputText id="invoicee" class="form-control" @bind-Value="@invoiceDto.Invoicee" />
+                <ValidationMessage For="@(() => invoiceDto.Invoicee)" />
+            </div>
+            <div class="form-group">
+                <label for="dateTime">Date created:</label>
+                <RadzenDatePicker id="dateTime" @bind-Value="@invoiceDto.DateTime" />
+                <ValidationMessage For="@(() => invoiceDto.DateTime)" />
+            </div>
+            <div class="form-group">
+                <label for="status">Status:</label>
+                <InputSelect id="role" class="form-control" @bind-Value="@invoiceDto.Status">
+                    @foreach (var role in Enum.GetValues(typeof(Statuses)))
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => invoiceDto.Status)" />
+            </div>
+
+            @if(categories != null)
+            {
+                <div class="form-group">
+                    <label for="category">Category:</label>
+                    <InputSelect id="category" class="form-control" @bind-Value="invoiceDto.CategoryId">
+                        <option value="">Select a category...</option>
+                        @foreach (var category in categories)
+                        {
+                            <option value="@category.Id">@category.Name</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="@(() => invoiceDto.CategoryId)" />
+                </div>
+            }
+
+            <div class="form-group">
+                <label for="description">Description:</label>
+                <InputTextArea id="description" class="form-control" @bind-Value="@invoiceDto.Description" />
+                <ValidationMessage For="@(() => invoiceDto.Description)" />
+            </div>
+
+            <div class="form-group">
+                <label for="invoiceDocument">Invoice document:</label>
+                <InputFile id="invoiceDocument" class="form-control" accept="image/png" OnChange="async e => invoiceDto.InvoiceDocument = await ImageHelper.ImageToByteArray(e)" />
+                <ValidationMessage For="@(() => invoiceDto.InvoiceDocument)" />
+            </div>
+            <div class="form-group">
+                <label for="proofOfPaymentDocument">Proof of payment document:</label>
+                <InputFile id="proofOfPaymentDocument" class="form-control" accept="image/png" OnChange="async e => invoiceDto.ProofOfPaymentDocument = await ImageHelper.ImageToByteArray(e)" />
+                <ValidationMessage For="@(() => invoiceDto.ProofOfPaymentDocument)" />
+            </div>
+            <div class="d-flex flex-row justify-content-between align-items-center mt-2">
+                <div></div>
+                <RadzenButton type="submit" IsBusy="@loading" BusyText="Saving..." class="btn btn-primary">Save</RadzenButton>
+            </div>
+        </EditForm>
+    </Authorized>
+    <NotAuthorized>
+        <h1>Unauthorized access attempt</h1>
+        <br>
+        <p>You do not have permission to view this page.</p>
+        <p>If you require access to this page, contact your administrator.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+
+
+@code {
+    [Parameter]
+    public string externalId { get; set; }
+
+    InvoiceDto? invoiceDto;
+    UserDto? currentUser;
+    List<CategoryDto> categories;
+    ValidationMessageStore? messageStore;
+    EditContext? formContext;
+    bool loading;
+
+    protected override async void OnInitialized()
+    {
+        if (string.IsNullOrEmpty(externalId))
+        {
+            invoiceDto = new InvoiceDto();
+            var authState = await authenticationProvider.GetAuthenticationStateAsync();
+            currentUser = await userService.GetUserByNameAsync(authState.User.Identity.Name);
+            var currentUserId = await userService.GetUserIdAsync(currentUser.ExternalId.ToString());
+            invoiceDto.UserId = currentUserId;
+            invoiceDto.DateTime = DateTime.Now;
+            invoiceDto.CompanyId = currentUser.CompanyId;
+        }
+        else
+        {
+            invoiceDto = await invoiceService.GetInvoiceByExternalIdAsync(externalId);
+        }
+
+        categories = await categoryService.GetCategoriesAsync();
+        formContext = new(invoiceDto);
+        formContext.OnValidationRequested += HandleValidationRequested;
+        messageStore = new(formContext);
+
+        StateHasChanged();
+    }
+
+    async void HandleSubmitForm()
+    {
+        loading = true;
+        string response = string.Empty;
+        if (!string.IsNullOrEmpty(externalId))
+        {
+            response = await invoiceService.UpdateInvoiceAsync(invoiceDto);
+        }
+        else
+        {
+            response = await invoiceService.CreateInvoiceAsync(invoiceDto);
+        }
+        if (!string.IsNullOrEmpty(response))
+        {
+            await jsRuntime.InvokeVoidAsync("alert", response);
+        }
+
+        loading = false;
+        StateHasChanged();
+        navigationManager.NavigateTo("/invoices", true);
+    }
+
+    private void HandleValidationRequested(object? sender,
+        ValidationRequestedEventArgs args)
+    {
+        loading = true;
+        messageStore?.Clear();
+
+        // Custom validation logic
+        if (string.IsNullOrEmpty(invoiceDto.Barcode))
+        {
+            messageStore?.Add(() => invoiceDto.Barcode, "Barcode is required.");
+        }
+        if (string.IsNullOrEmpty(invoiceDto.Invoicee))
+        {
+            messageStore?.Add(() => invoiceDto.Invoicee, "Invoicee is required.");
+        }
+        if (invoiceDto.DateTime == DateTime.MinValue)
+        {
+            messageStore?.Add(() => invoiceDto.Invoicee, "Creation date is required.");
+        }
+        if (invoiceDto.Status == null)
+        {
+            messageStore?.Add(() => invoiceDto.Invoicee, "Status is required.");
+        }
+        if (invoiceDto.CategoryId == null)
+        {
+            messageStore?.Add(() => invoiceDto.Invoicee, "Category is required.");
+        }
+        if (invoiceDto.InvoiceDocument == null)
+        {
+            messageStore?.Add(() => invoiceDto.Invoicee, "Invoice document is required.");
+        }
+        loading = false;
+    }
+}

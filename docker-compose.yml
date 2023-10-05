@@ -1,0 +1,22 @@
+version: '3.4'
+
+services:
+  numus.server:
+    container_name: numus_app
+    image: ${DOCKER_REGISTRY-}numusserver
+    build:
+      context: .
+      dockerfile: Numus/Server/Dockerfile
+    depends_on:
+      - sql
+  sql:
+    image: "mcr.microsoft.com/mssql/server:2022-latest"
+    container_name: sql_server2022
+    user: root
+    ports:
+      - 1401:1433
+    volumes:
+        - ./data:/var/opt/mssql/data
+    environment:
+      - ACCEPT_EULA=y
+      - MSSQL_SA_PASSWORD=&a@a*11Q1svAC4SM7W74yP1S2N8AAB*2

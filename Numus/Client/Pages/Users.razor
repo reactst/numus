@@ -1,0 +1,77 @@
+﻿@page "/users"
+@inject UserService userService
+@inject NavigationManager navigationManager
+
+
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        <PageTitle>Users</PageTitle>
+        @if(users == null)
+        {
+            <h5>Loading...</h5>
+        }
+        else
+        {
+            <RadzenButton Text="Add user" Click="@(args => navigateAddUser())"></RadzenButton>
+            <RadzenDataList WrapItems="true" AllowPaging="true"
+                        Data="@users" TItem="UserDto" PageSize="25" PagerHorizontalAlign="HorizontalAlign.Left" ShowPagingSummary="true">
+                <Template Context="user">
+                    <RadzenCard Style="width: 100%; padding: 0;">
+                        <RadzenRow Gap="0">
+                            <RadzenColumn Size="6" SizeLG="3" Class="rz-p-4">
+                                <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H5">@(user.Name)</RadzenText>
+                                </RadzenColumn>
+                                <RadzenColumn Size="6" SizeLG="6" Class="rz-p-4">
+                                    <RadzenRow Gap="0">
+                                        <RadzenColumn Size="6" SizeMD="6" SizeLG="2">
+                                            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H5" Class="rz-mb-0">Role</RadzenText>
+                                            <RadzenText TextStyle="TextStyle.Body2">@(user.Role)</RadzenText>
+                                        </RadzenColumn>
+                                        <RadzenColumn Size="6" SizeMD="6" SizeLG="2">
+                                            <RadzenText TextStyle="TextStyle.H6" TagName="TagName.H5" Class="rz-mb-0">Email</RadzenText>
+                                            <RadzenText TextStyle="TextStyle.Body2">@(user.Email)</RadzenText>
+                                        </RadzenColumn>
+                                    </RadzenRow>
+                                </RadzenColumn>
+                                <RadzenColumn Size="6" SizeLG="1" Class="rz-p-4">
+                                    <RadzenButton Text="Edit" Click="@(args => navigateEditUser(user))" Style="width: 100%" />
+                                </RadzenColumn>
+                                <RadzenColumn Size="6" SizeLG="1" Class="rz-p-4">
+                                    <RadzenButton Text="Delete" Click="@(args => deleteUser(user))" Style="width: 100%" />
+                                </RadzenColumn>
+                            </RadzenRow>
+                        </RadzenCard>
+                    </Template>
+                </RadzenDataList>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <h1>Unauthorized access attempt</h1>
+        <br>
+        <p>You do not have permission to view this page.</p>
+        <p>If you require access to this page, contact your administrator.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    List<UserDto>? users;
+
+    protected override async void OnInitialized()
+    {
+        users = await userService.GetUsersAsQueryableAsync();
+        StateHasChanged();
+    }
+    public void navigateEditUser(UserDto userDto)
+    {
+        navigationManager.NavigateTo($"/user/{userDto.ExternalId}");
+    }
+    public void navigateAddUser()
+    {
+        navigationManager.NavigateTo($"/user");
+    }
+    public void deleteUser(UserDto userDto)
+    {
+        userService.DeleteUser(userDto);
+        navigationManager.NavigateTo("/users", true);
+    }
+}

@@ -1,0 +1,141 @@
+﻿@page "/user"
+@page "/user/{externalId}"
+@using Numus.Client.Helpers
+@using System.Text.RegularExpressions;
+@using Numus.Shared.Constants;
+@inject UserService userService
+@inject IJSRuntime jsRuntime
+@inject AuthenticationStateProvider authenticationProvider
+@inject NavigationManager navigationManager
+
+
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        <PageTitle>Users</PageTitle>
+
+        <EditForm Context="editContext" EditContext="formContext" OnValidSubmit="HandleSubmitForm">
+            <DataAnnotationsValidator />
+            <div class="form-group">
+                <label for="name">Name:</label>
+                <InputText id="name" class="form-control" @bind-Value="@userDto.Name" />
+                <ValidationMessage For="@(() => userDto.Name)" />
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email:</label>
+                <InputText id="email" class="form-control" @bind-Value="@userDto.Email" />
+                <ValidationMessage For="@(() => userDto.Email)" />
+            </div>
+
+            <div class="form-group">
+                <label for="password">New Password:</label>
+                <InputText id="password" type="password" class="form-control" @bind-Value="@userDto.Password" />
+                <ValidationMessage For="@(() => userDto.Password)" />
+            </div>
+
+            <div class="form-group">
+                <label for="role">Role:</label>
+                <InputSelect id="role" class="form-control"  @bind-Value="@userDto.Role" >
+                    @foreach (var role in Enum.GetValues(typeof(Roles)))
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </InputSelect>
+                <ValidationMessage For="@(() => userDto.Role)" />
+            </div>
+
+            <div class="form-group">
+                <label for="profilePicture">Profile picture:</label>
+                <InputFile id="image" class="form-control" accept="image/png" OnChange="async e => await ImageHelper.ImageToByteArray(e,userDto)" />
+                <ValidationMessage For="@(() => userDto.Image)" />
+            </div>
+            <div class="d-flex flex-row justify-content-between align-items-center mt-2">
+                    <div></div>
+                    <RadzenButton type="submit" IsBusy="@loading" BusyText="Saving..." class="btn btn-primary">Save</RadzenButton>
+            </div>
+        </EditForm>
+        
+    </Authorized>
+    <NotAuthorized>
+        <h1>Unauthorized access attempt</h1>
+        <br>
+        <p>You do not have permission to view this page.</p>
+        <p>If you require access to this page, contact your administrator.</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public string? externalId { get; set; }
+
+    UserDto? userDto;
+    ValidationMessageStore? messageStore;
+    EditContext? formContext;
+    bool loading;
+
+
+    protected override async void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(externalId))
+        {
+            userDto = await userService.GetUserByExternalIdAsync(externalId);
+        }
+        else
+        {
+            userDto = new UserDto();
+            var authState = await authenticationProvider.GetAuthenticationStateAsync();
+            var currentUser = await userService.GetUserByNameAsync(authState.User.Identity.Name);
+            userDto.CompanyId = currentUser.CompanyId;
+        }
+
+        formContext = new(userDto);
+        formContext.OnValidationRequested += HandleValidationRequested;
+        messageStore = new(formContext);
+
+        StateHasChanged();
+    }
+
+    async void HandleSubmitForm()
+    {
+        loading = true;
+        string response = string.Empty;
+        if (!string.IsNullOrEmpty(externalId))
+        {
+            response = await userService.UpdateUserAsync(userDto);
+        }
+        else
+        {
+            response = await userService.CreateUserAsync(userDto);
+        }
+        if (!string.IsNullOrEmpty(response))
+        {
+            await jsRuntime.InvokeVoidAsync("alert", response);
+        }
+
+        loading = false;
+        StateHasChanged();
+        navigationManager.NavigateTo("/users", true);
+    }
+
+    private void HandleValidationRequested(object? sender,
+        ValidationRequestedEventArgs args)
+    {
+        loading = true;
+        messageStore?.Clear();
+
+        // Custom validation logic
+        if (string.IsNullOrEmpty(userDto.Name))
+        {
+            messageStore?.Add(() => userDto.Name, "Please enter your name.");
+        }
+        if (string.IsNullOrEmpty(userDto.Email) || !Regex.IsMatch(userDto.Email, @"^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$"))
+        {
+            messageStore?.Add(() => userDto.Email, "Please enter a valid email address.");
+        }
+        if (!string.IsNullOrEmpty(userDto.Password) && (userDto.Password.Length < 8 || !Regex.IsMatch(userDto.Password, @"^(?=.*[0-9]).{8,}$")))
+        {
+            messageStore?.Add(() => userDto.Password, "Password needs to be at least 8 characters long, and must contain at lest one number.");
+        }
+        loading = false;
+    }
+}
